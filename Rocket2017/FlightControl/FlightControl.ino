@@ -21,7 +21,7 @@
 double LAUNCHPAD_ALT;               // altitude of launchsite
 double REST_ACCEL;                  // acceleration of non-accelerating vehicle
 long int BEGIN_TIME;                // time the main loop begins
-int stage = ON_LAUNCHPAD;           // current state of the vehicle
+uint8_t stage = ON_LAUNCHPAD;       // current state of the vehicle
 
 Adafruit_LSM303_Accel_Unified       lsm = Adafruit_LSM303_Accel_Unified(30301);
 Adafruit_BMP085_Unified             bmp = Adafruit_BMP085_Unified(10085);
@@ -30,6 +30,27 @@ KalmanFilter filter(0,0.0001);
 File sensorData;
 
 using namespace Equation;
+
+namespace motor
+{
+    void deploy()
+    {
+        digitalWrite(MOTOR_RIGHT, LOW);
+        digitalWrite(MOTOR_LEFT, HIGH);
+    }
+
+    void retract()
+    {
+        digitalWrite(MOTOR_LEFT, LOW);
+        digitalWrite(MOTOR_RIGHT, HIGH);
+    }
+
+    void kill()
+    {
+        digitalWrite(MOTOR_LEFT, LOW);
+        digitalWrite(MOTOR_RIGHT, LOW);
+    }
+}
 
 void setup()
 {
@@ -275,25 +296,4 @@ double getAltitude(uint8_t measurements)
             event.pressure);
     }
     return sum/measurements;
-}
-
-namespace motor
-{
-    void deploy()
-    {
-        digitalWrite(MOTOR_RIGHT, LOW);
-        digitalWrite(MOTOR_LEFT, HIGH);
-    }
-
-    void retract()
-    {
-        digitalWrite(MOTOR_LEFT, LOW);
-        digitalWrite(MOTOR_RIGHT, HIGH);
-    }
-
-    void kill()
-    {
-        digitalWrite(MOTOR_LEFT, LOW);
-        digitalWrite(MOTOR_RIGHT, LOW);
-    }
 }
