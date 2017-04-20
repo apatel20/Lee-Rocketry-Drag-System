@@ -11,7 +11,8 @@
 #define NOMINAL_DT                  0.05 // seconds
 #define INDICATOR_PIN               3 // blinks with every tick
 #define ERROR_PIN                   4 // turns on if a fatal error occurs
-#define MOTOR_PIN                   5 // toggles flap state
+#define MOTOR_RIGHT                 9
+#define MOTOR_LEFT                  10
 
 #define ON_LAUNCHPAD                0 // indicates rocket is on the launchpad. accel = 0.
 #define MOTOR_BURN                  1 // indicates motor is burning. accel > 0.
@@ -35,16 +36,17 @@ void setup()
     // set the pinmode for the diagnostic LEDs
     SET(DDRD, INDICATOR_PIN);
     SET(DDRD, ERROR_PIN);
-    SET(DDRD, MOTOR_PIN);
 
     // flash the LEDs to ensure they're all working
     SET(PORTD, INDICATOR_PIN);
     SET(PORTD, ERROR_PIN);
-    SET(PORTD, MOTOR_PIN);
     delay(1000);
     CLR(PORTD, INDICATOR_PIN);
     CLR(PORTD, ERROR_PIN);
-    CLR(PORTD, MOTOR_PIN);
+    delay(500);
+    motor::deploy();
+    delay(1000);
+    motor::retract();
 
     // initialize the LSM303, the BMP085, and the SD card
     if(!lsm.begin()) fatal_error(1);
@@ -106,7 +108,7 @@ void loop()
 
     // filter wizardry to clean up alt and accel data
     filter.F[0][1] = 0.2 * dt;
-    float Z[2] = {raw_altitude, raw_accel};
+    float Z[MEAS] = {raw_altitude, raw_accel};
     float* X = filter.step((float*) Z);
     altitude = X[0];
     accel = X[1];
@@ -171,22 +173,19 @@ void loop()
         // if the predicted altitude is acceptable, engage the flaps
         if (apo_predict > TARGET_ALT && vel_next > vmin)
         {
-            // TODO: flaps ON
-            SET(PORTD, MOTOR_PIN);
+            motor::deploy();
             minor_status = 1;
         }
         else // otherwise, retract the flaps
         {
-            // TODO: flaps OFF
-            CLR(PORTD, MOTOR_PIN);
+            motor::retract();
             minor_status = 0;
         }
 
         // permanently disable flaps if velocity is low enough
         if (velocity < vmin)
         {
-            // TODO: flaps OFF
-            CLR(PORTD, MOTOR_PIN);
+            motor::retract();
             minor_status = 2;
             stage++;
         }
@@ -238,20 +237,6 @@ void update_time(double* current_time, double* dt)
     lastTime = *current_time;
 }
 
-void update_indicator()
-{
-    static bool indicator;
-    if (indicator)
-    {
-        SET(PORTD, INDICATOR_PIN);
-    }
-    else
-    {
-        CLR(PORTD, INDICATOR_PIN);
-    }
-    indicator = !indicator;
-}
-
 void fatal_error(uint8_t error)
 {
     while(1)
@@ -290,4 +275,25 @@ double getAltitude(uint8_t measurements)
             event.pressure);
     }
     return sum/measurements;
+}
+
+namespace motor
+{
+    void deploy()
+    {
+        digitalWrite(MOTOR_RIGHT, LOW);
+        digitalWrite(MOTOR_LEFT, HIGH);
+    }
+
+    void retract()
+    {
+        digitalWrite(MOTOR_LEFT, LOW);
+        digitalWrite(MOTOR_RIGHT, HIGH);
+    }
+
+    void kill()
+    {
+        digitalWrite(MOTOR_LEFT, LOW);
+        digitalWrite(MOTOR_RIGHT, LOW);
+    }
 }
