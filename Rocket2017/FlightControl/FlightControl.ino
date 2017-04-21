@@ -11,8 +11,12 @@
 #define NOMINAL_DT                  0.05 // seconds
 #define INDICATOR_PIN               3 // blinks with every tick
 #define ERROR_PIN                   4 // turns on if a fatal error occurs
-#define MOTOR_RIGHT                 9
-#define MOTOR_LEFT                  10
+
+#define CONTACT_A                   6 // contact switch A
+#define CONTACT_B                   7 // contact switch B
+
+#define MOTOR_POSITIVE              9 // motor positive terminal
+#define MOTOR_NEGATIVE              10 // motor negative terminal
 
 #define ON_LAUNCHPAD                0 // indicates rocket is on the launchpad. accel = 0.
 #define MOTOR_BURN                  1 // indicates motor is burning. accel > 0.
@@ -35,28 +39,34 @@ namespace motor
 {
     void deploy()
     {
-        digitalWrite(MOTOR_RIGHT, LOW);
-        digitalWrite(MOTOR_LEFT, HIGH);
+        digitalWrite(MOTOR_POSITIVE, LOW);
+        digitalWrite(MOTOR_NEGATIVE, HIGH);
     }
 
     void retract()
     {
-        digitalWrite(MOTOR_LEFT, LOW);
-        digitalWrite(MOTOR_RIGHT, HIGH);
+        digitalWrite(MOTOR_NEGATIVE, LOW);
+        digitalWrite(MOTOR_POSITIVE, HIGH);
     }
 
     void kill()
     {
-        digitalWrite(MOTOR_LEFT, LOW);
-        digitalWrite(MOTOR_RIGHT, LOW);
+        digitalWrite(MOTOR_NEGATIVE, LOW);
+        digitalWrite(MOTOR_POSITIVE, LOW);
     }
 }
 
 void setup()
 {
+    Serial.begin(9600);
+
     // set the pinmode for the diagnostic LEDs
     SET(DDRD, INDICATOR_PIN);
     SET(DDRD, ERROR_PIN);
+
+    // set the pinmode for the contact switches
+    CLR(DDRD, CONTACT_A);
+    CLR(DDRD, CONTACT_B);
 
     // flash the LEDs to ensure they're all working
     SET(PORTD, INDICATOR_PIN);
@@ -65,9 +75,13 @@ void setup()
     CLR(PORTD, INDICATOR_PIN);
     CLR(PORTD, ERROR_PIN);
     delay(500);
+    // toggle the flaps, just for fun
     motor::deploy();
     delay(1000);
     motor::retract();
+
+    attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
+    attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
 
     // initialize the LSM303, the BMP085, and the SD card
     if(!lsm.begin()) fatal_error(1);
@@ -271,6 +285,11 @@ void fatal_error(uint8_t error)
         }
         delay(500);
     }
+}
+
+void contactInterrupt()
+{
+    Serial.println("CONTACT SWITCH TRIGGERED");
 }
 
 double getAcceleration(uint8_t measurements)
