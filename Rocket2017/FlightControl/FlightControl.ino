@@ -2,7 +2,7 @@
 #include <Adafruit_BMP085_U.h>      // for BMP085 altimeter
 #include <Adafruit_LSM303_U.h>      // for LSM303 accelerometer
 
-#include <RocketMath.h>             // for Kalman filter and trajectory equations
+#include <RocketMath.h>             // for Kalman filter, trajectory, and flaps
 #include "Vehicle.h"                // for rocket vehicle characteristics
 
 #define CLR(x,y) (x&=(~(1<<y)))     // macros for writing to registers
@@ -15,12 +15,13 @@
 #define CONTACT_A                   6 // contact switch A
 #define CONTACT_B                   7 // contact switch B
 
-#define MOTOR_POSITIVE              9 // motor positive terminal
-#define MOTOR_NEGATIVE              10 // motor negative terminal
+#define FLAP_POSITIVE               9 // flap motor positive terminal
+#define FLAP_NEGATIVE               10 // flap motor negative terminal
 
 #define ON_LAUNCHPAD                0 // indicates rocket is on the launchpad. accel = 0.
 #define MOTOR_BURN                  1 // indicates motor is burning. accel > 0.
 #define APOGEE_COAST                2 // indicates motor has burned out. accel < 0.
+#define POST_APOGEE                 3 // indicates vehicle is falling
 
 double LAUNCHPAD_ALT;               // altitude of launchsite
 double REST_ACCEL;                  // acceleration of non-accelerating vehicle
@@ -32,27 +33,7 @@ Adafruit_BMP085_Unified             bmp = Adafruit_BMP085_Unified(10085);
 
 KalmanFilter filter(0,0.0001);
 File sensorData;
-
-namespace flaps
-{
-    void deploy()
-    {
-        digitalWrite(MOTOR_POSITIVE, LOW);
-        digitalWrite(MOTOR_NEGATIVE, HIGH);
-    }
-
-    void retract()
-    {
-        digitalWrite(MOTOR_NEGATIVE, LOW);
-        digitalWrite(MOTOR_POSITIVE, HIGH);
-    }
-
-    void kill()
-    {
-        digitalWrite(MOTOR_NEGATIVE, LOW);
-        digitalWrite(MOTOR_POSITIVE, LOW);
-    }
-}
+FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 5);
 
 void setup()
 {
@@ -74,9 +55,10 @@ void setup()
     CLR(PORTD, ERROR_PIN);
     delay(500);
     // toggle the flaps, just for fun
-    flaps::deploy();
+    flaps.deploy();
+    delay(200);
+    flaps.retract();
     delay(1000);
-    flaps::retract();
 
     attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
@@ -129,7 +111,7 @@ void setup()
     sensorData.println("time,raw alt,k alt,raw accel,k accel,vel,s1,s2");
     BEGIN_TIME = millis();
     delay(NOMINAL_DT * 1000);
-    flaps::kill();
+    flaps.kill();
 }
 
 void loop()
@@ -207,22 +189,25 @@ void loop()
         // if the predicted altitude is acceptable, engage the flaps
         if (apo_predict > TARGET_ALT && vel_next > vmin)
         {
-            if (FLIGHT_NUMBER) flaps::deploy();
+            if (FLIGHT_NUMBER) flaps.deploy();
             minor_status = 1;
         }
         else // otherwise, retract the flaps
         {
-            if (FLIGHT_NUMBER) flaps::retract();
+            if (FLIGHT_NUMBER) flaps.retract();
             minor_status = 0;
         }
 
         // permanently disable flaps if velocity is low enough
         if (velocity < vmin)
         {
-            if (FLIGHT_NUMBER) flaps::retract();
             minor_status = 2;
             stage++;
         }
+    }
+    if (stage == POST_APOGEE)
+    {
+        flaps.retract();
     }
 
     alt_prev = altitude; // save previous altitude for faux derivative

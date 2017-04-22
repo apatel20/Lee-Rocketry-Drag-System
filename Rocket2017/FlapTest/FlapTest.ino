@@ -1,34 +1,14 @@
-#define MOTOR_POSITIVE 9
-#define MOTOR_NEGATIVE 10
+#include <RocketMath.h>
 
-namespace flaps
-{
-    void deploy()
-    {
-        digitalWrite(MOTOR_POSITIVE, LOW);
-        digitalWrite(MOTOR_NEGATIVE, HIGH);
-    }
+#define FLAP_POSITIVE 9
+#define FLAP_NEGATIVE 10
 
-    void retract()
-    {
-        digitalWrite(MOTOR_NEGATIVE, LOW);
-        digitalWrite(MOTOR_POSITIVE, HIGH);
-    }
-
-    void kill()
-    {
-        digitalWrite(MOTOR_NEGATIVE, LOW);
-        digitalWrite(MOTOR_POSITIVE, LOW);
-    }
-}
+FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 5);
 
 void setup()
 {
     Serial.begin(9600);
     Serial.println("Starting motor test.");
-
-    pinMode(MOTOR_POSITIVE, OUTPUT);
-    pinMode(MOTOR_NEGATIVE, OUTPUT);
 }
 
 void loop()
@@ -43,7 +23,7 @@ void loop()
         delay(1000);
     }
 
-    flaps::kill();
+    flaps.kill();
     delay(3000);
 
     // cyclic stress testing by very fast deployment cycles
@@ -54,12 +34,12 @@ void loop()
         delay(50);
     }
 
-    flaps::kill();
+    flaps.kill();
 }
 
 void cycle(uint16_t millis)
 {
-    flaps::deploy();
+    flaps.deploy();
     delay(millis);
-    flaps::retract();
+    flaps.retract();
 }

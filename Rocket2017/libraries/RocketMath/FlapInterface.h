@@ -1,21 +1,23 @@
 #ifndef FLAP_INTERFACE_H
 #define FLAP_INTERFACE_H
 
+#include <Arduino.h>
+
 class FlapInterface
 {
     public:
-    
+
         FlapInterface(uint8_t pospin, uint8_t negpin, uint8_t maxstate)
         {
             this->pospin = pospin;
             this->negpin = negpin;
             this->maxstate = maxstate;
             state = 0;
-            pinmode(pospin, OUT);
-            pinmode(negpin, OUT);
+            pinMode(pospin, OUTPUT);
+            pinMode(negpin, OUTPUT);
             kill();
         }
-        
+
         void deploy()
         {
             if (state == maxstate) kill();
@@ -26,7 +28,7 @@ class FlapInterface
                 digitalWrite(pospin, HIGH);
             }
         }
-        
+
         void retract()
         {
             if (state == 0) kill();
@@ -37,15 +39,15 @@ class FlapInterface
                 digitalWrite(negpin, HIGH);
             }
         }
-    
-        void FlapControl::kill()
+
+        void kill()
         {
             digitalWrite(pospin, LOW);
-            digitalWrite(negpin, HIGH);
+            digitalWrite(negpin, LOW);
         }
-        
+
     private:
-    	
+
         uint8_t state;
         uint8_t maxstate;
         uint8_t pospin;
