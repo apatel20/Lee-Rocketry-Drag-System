@@ -33,9 +33,7 @@ Adafruit_BMP085_Unified             bmp = Adafruit_BMP085_Unified(10085);
 KalmanFilter filter(0,0.0001);
 File sensorData;
 
-using namespace Equation;
-
-namespace motor
+namespace flaps
 {
     void deploy()
     {
@@ -76,9 +74,9 @@ void setup()
     CLR(PORTD, ERROR_PIN);
     delay(500);
     // toggle the flaps, just for fun
-    motor::deploy();
+    flaps::deploy();
     delay(1000);
-    motor::retract();
+    flaps::retract();
 
     attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
@@ -131,6 +129,7 @@ void setup()
     sensorData.println("time,raw alt,k alt,raw accel,k accel,vel,s1,s2");
     BEGIN_TIME = millis();
     delay(NOMINAL_DT * 1000);
+    flaps::kill();
 }
 
 void loop()
@@ -174,7 +173,7 @@ void loop()
         major_status = MOTOR_BURN;
         minor_status = low_accel_count;
     }
-    if (stage == APOGEE_COAST && FLIGHT_NUMBER)
+    if (stage == APOGEE_COAST)
     {
         /*
          * alt_next and vel_next are the predicted state of the rocket in
@@ -198,29 +197,29 @@ void loop()
         major_status = APOGEE_COAST;
 
         // predictive calculations determine where vehicle will be next step
-        double alt_next = alt(altitude, velocity, DRY_MASS, K_ACTIVE, dt);
-        double vel_next = vel(velocity, DRY_MASS, K_ACTIVE, dt);
+        double alt_next = trajectory::alt(altitude, velocity, DRY_MASS, K_ACTIVE, dt);
+        double vel_next = trajectory::vel(velocity, DRY_MASS, K_ACTIVE, dt);
 
         // describe the trajectory the vehicle will be on during next step
-        double ta_predict = t_a(vel_next, DRY_MASS, K_PASSIVE);
-        double apo_predict = alt(alt_next, vel_next, DRY_MASS, K_PASSIVE, ta_predict);
+        double ta_predict = trajectory::t_a(vel_next, DRY_MASS, K_PASSIVE);
+        double apo_predict = trajectory::alt(alt_next, vel_next, DRY_MASS, K_PASSIVE, ta_predict);
 
         // if the predicted altitude is acceptable, engage the flaps
         if (apo_predict > TARGET_ALT && vel_next > vmin)
         {
-            motor::deploy();
+            if (FLIGHT_NUMBER) flaps::deploy();
             minor_status = 1;
         }
         else // otherwise, retract the flaps
         {
-            motor::retract();
+            if (FLIGHT_NUMBER) flaps::retract();
             minor_status = 0;
         }
 
         // permanently disable flaps if velocity is low enough
         if (velocity < vmin)
         {
-            motor::retract();
+            if (FLIGHT_NUMBER) flaps::retract();
             minor_status = 2;
             stage++;
         }
