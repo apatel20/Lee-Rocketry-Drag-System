@@ -55,7 +55,7 @@ void setup()
         flaps.deploy();
         delay(1000);
         digitalWrite(INDICATOR_PIN, LOW);
-        digitalWrite(INDICATOR_PIN, LOW);
+        digitalWrite(ERROR_PIN, LOW);
         flaps.retract();
         delay(600);
         flaps.kill();
