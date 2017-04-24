@@ -18,25 +18,35 @@ class FlapInterface
             kill();
         }
 
-        void deploy()
+        uint8_t deploy()
         {
-            if (state == maxstate) kill();
+            if (state == maxstate)
+            {
+                kill();
+                return 0;
+            }
             else
             {
                 state++;
                 digitalWrite(negpin, LOW);
                 digitalWrite(pospin, HIGH);
+                return 1;
             }
         }
 
-        void retract()
+        uint8_t retract()
         {
-            if (state == 0) kill();
+            if (state == 0)
+            {
+                kill();
+                return 0;
+            }
             else
             {
                 state--;
                 digitalWrite(pospin, LOW);
                 digitalWrite(negpin, HIGH);
+                return 1;
             }
         }
 

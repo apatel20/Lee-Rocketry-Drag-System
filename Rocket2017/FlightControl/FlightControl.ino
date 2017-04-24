@@ -15,8 +15,8 @@
 #define CONTACT_A                   6 // contact switch A
 #define CONTACT_B                   7 // contact switch B
 
-#define FLAP_POSITIVE               9 // flap motor positive terminal
-#define FLAP_NEGATIVE               10 // flap motor negative terminal
+#define FLAP_POSITIVE               8 // flap motor positive terminal
+#define FLAP_NEGATIVE               9 // flap motor negative terminal
 
 #define ON_LAUNCHPAD                0 // indicates rocket is on the launchpad. accel = 0.
 #define MOTOR_BURN                  1 // indicates motor is burning. accel > 0.
@@ -33,32 +33,33 @@ Adafruit_BMP085_Unified             bmp = Adafruit_BMP085_Unified(10085);
 
 KalmanFilter filter(0,0.0001);
 File sensorData;
-FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 5);
+FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 50);
 
 void setup()
 {
     Serial.begin(9600);
 
     // set the pinmode for the diagnostic LEDs
-    SET(DDRD, INDICATOR_PIN);
-    SET(DDRD, ERROR_PIN);
+    pinMode(INDICATOR_PIN, OUTPUT);
+    pinMode(ERROR_PIN, OUTPUT);
 
     // set the pinmode for the contact switches
-    CLR(DDRD, CONTACT_A);
-    CLR(DDRD, CONTACT_B);
+    pinMode(CONTACT_A, INPUT);
+    pinMode(CONTACT_B, INPUT);
 
-    // flash the LEDs to ensure they're all working
-    SET(PORTD, INDICATOR_PIN);
-    SET(PORTD, ERROR_PIN);
-    delay(1000);
-    CLR(PORTD, INDICATOR_PIN);
-    CLR(PORTD, ERROR_PIN);
-    delay(500);
-    // toggle the flaps, just for fun
-    flaps.deploy();
-    delay(200);
-    flaps.retract();
-    delay(1000);
+    // flash the LEDs and flaps to ensure they're all working
+    for (uint8_t i = 0; i < FLIGHT_NUMBER + 1; i++) // twice if second flight
+    {
+        digitalWrite(INDICATOR_PIN, HIGH);
+        digitalWrite(ERROR_PIN, HIGH);
+        flaps.deploy();
+        delay(1000);
+        digitalWrite(INDICATOR_PIN, LOW);
+        digitalWrite(INDICATOR_PIN, LOW);
+        flaps.retract();
+        delay(600);
+        flaps.kill();
+    }
 
     attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
@@ -111,7 +112,6 @@ void setup()
     sensorData.println("time,raw alt,k alt,raw accel,k accel,vel,s1,s2");
     BEGIN_TIME = millis();
     delay(NOMINAL_DT * 1000);
-    flaps.kill();
 }
 
 void loop()
@@ -123,7 +123,7 @@ void loop()
     raw_accel = getAcceleration(1) - REST_ACCEL;
 
     // filter wizardry to clean up alt and accel data
-    filter.F[0][1] = 0.2 * dt;
+    filter.F[0][1] = dt * dt;
     float Z[MEAS] = {raw_altitude, raw_accel};
     float* X = filter.step((float*) Z);
     altitude = X[0];
@@ -198,12 +198,14 @@ void loop()
             minor_status = 0;
         }
 
-        // permanently disable flaps if velocity is low enough
+        static uint8_t low_accel_count;
         if (velocity < vmin)
         {
-            minor_status = 2;
-            stage++;
+            low_accel_count++;
+            flaps.retract();
         }
+        else if (low_accel_count > 0) low_accel_count--;
+        if (low_accel_count > ticksToAdvance) stage++;
     }
     if (stage == POST_APOGEE)
     {
@@ -213,7 +215,6 @@ void loop()
     alt_prev = altitude; // save previous altitude for faux derivative
 
     // write to log file
-    static uint8_t flush;
     sensorData.print(current_time, 4);
     sensorData.print(",");
     sensorData.print(raw_altitude);
@@ -230,6 +231,7 @@ void loop()
     sensorData.print(",");
     sensorData.println(minor_status);
 
+    static uint8_t flush;
     flush++;
     if (flush == 50)
     {
@@ -262,9 +264,9 @@ void fatal_error(uint8_t error)
     {
         for (uint8_t i = 0; i < error; i++)
         {
-            SET(PORTD, ERROR_PIN);
+            digitalWrite(ERROR_PIN, HIGH);
             delay(250);
-            CLR(PORTD, ERROR_PIN);
+            digitalWrite(ERROR_PIN, LOW);
             delay(250);
         }
         delay(500);

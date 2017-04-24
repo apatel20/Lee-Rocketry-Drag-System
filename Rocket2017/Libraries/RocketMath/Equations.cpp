@@ -1,9 +1,5 @@
 #include "Equations.h"
-#include <stdio.h>
 #include <math.h>
-#include <time.h>
-#include <stdbool.h>
-#include <string.h>
 
 /*
  * Precondition: all functions are called with valid arguments.

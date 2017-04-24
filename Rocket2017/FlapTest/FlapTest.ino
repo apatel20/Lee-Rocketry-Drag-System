@@ -3,7 +3,7 @@
 #define FLAP_POSITIVE 9
 #define FLAP_NEGATIVE 10
 
-FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 5);
+FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 50);
 
 void setup()
 {
@@ -13,15 +13,13 @@ void setup()
 
 void loop()
 {
-    flaps.deploy();
-    delay(3000);
-    flaps.kill();
+    test3();
 }
 
 void test1()
 {
     // test deploy/retract cycle with decreasing periods between
-    for (uint16_t millis = 2000; millis > 50; millis /= 2)
+    for (uint16_t millis = 2000; millis > 300; millis /= 2)
     {
         Serial.print("Testing deploy/retract with period: ");
         Serial.print(millis);
@@ -46,9 +44,18 @@ void test2()
     flaps.kill();
 }
 
+void test3()
+{
+    for (int i = 0; i < 5; i++)
+    {
+        cycle(400);
+    }
+}
+
 void cycle(uint16_t millis)
 {
     flaps.deploy();
     delay(millis);
     flaps.retract();
+    delay(millis);
 }
