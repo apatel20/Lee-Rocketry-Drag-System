@@ -9,6 +9,17 @@ class FlapInterface
 
         FlapInterface(uint8_t pospin, uint8_t negpin, uint8_t maxstate)
         {
+            /*
+             * WATCH OUT IT'S A BOA CONSTRUCTOR
+             *       __    __    __    __
+             *      /  \  /  \  /  \  /  \
+             *_____/  __\/  __\/  __\/  __\____________
+             *____/  /__/  /__/  /__/  /_______________|
+             *    | / \   / \   / \   / \   \___
+             *    |/   \_/   \_/   \_/   \    o \
+             *                            \_____/--<
+             */
+
             this->pospin = pospin;
             this->negpin = negpin;
             this->maxstate = maxstate;

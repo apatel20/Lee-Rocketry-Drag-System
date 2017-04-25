@@ -35,6 +35,13 @@ KalmanFilter filter(0,0.0001);
 File sensorData;
 FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 50);
 
+/*
+ *      __
+ *  ___( o)>   i am the wise duck of code, your code will compile
+ *  \ <_. )    without errors, but only if you say "compile well ducko"
+ *   `---'
+ */
+
 void setup()
 {
     Serial.begin(9600);
