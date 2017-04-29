@@ -224,9 +224,9 @@ void loop()
             low_accel_count++;
             FLAP_STATE = false;
         }
-        minor_status = FLAP_STATE;
         else if (low_accel_count > 0) low_accel_count--;
         if (low_accel_count > ticksToAdvance) stage++;
+        minor_status = FLAP_STATE;
     }
     if (FLAP_STATE && FLIGHT_NUMBER)
     {
