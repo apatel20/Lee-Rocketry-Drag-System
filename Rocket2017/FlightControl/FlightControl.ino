@@ -8,20 +8,22 @@
 #define CLR(x,y) (x&=(~(1<<y)))     // macros for writing to registers
 #define SET(x,y) (x|=(1<<y))
 
-#define NOMINAL_DT                  0.05 // seconds
-#define INDICATOR_PIN               3 // blinks with every tick
-#define ERROR_PIN                   4 // turns on if a fatal error occurs
-
-#define CONTACT_A                   6 // contact switch A
-#define CONTACT_B                   7 // contact switch B
-
+/* PIN DEFINITIONS */
+#define RED_PIN                     3 // turns on if fatal error occurs
+#define BLUE_PIN /* PIN 4 BROKEN */ 5 // blinks with every tick
+#define GREEN_PIN                   5 // no purpose yet
+// #define CONTACT_A                   6 // contact switch A
+// #define CONTACT_B                   7 // contact switch B
 #define FLAP_POSITIVE               8 // flap motor positive terminal
 #define FLAP_NEGATIVE               9 // flap motor negative terminal
 
+/* FLIGHT STATE DEFINITIONS */
 #define ON_LAUNCHPAD                0 // indicates rocket is on the launchpad. accel = 0.
 #define MOTOR_BURN                  1 // indicates motor is burning. accel > 0.
 #define APOGEE_COAST                2 // indicates motor has burned out. accel < 0.
 #define POST_APOGEE                 3 // indicates vehicle is falling
+
+#define NOMINAL_DT                  0.05 // seconds
 
 double LAUNCHPAD_ALT;               // altitude of launchsite
 double REST_ACCEL;                  // acceleration of non-accelerating vehicle
@@ -47,29 +49,31 @@ void setup()
     Serial.begin(9600);
 
     // set the pinmode for the diagnostic LEDs
-    pinMode(INDICATOR_PIN, OUTPUT);
-    pinMode(ERROR_PIN, OUTPUT);
+    pinMode(RED_PIN, OUTPUT);
+    pinMode(BLUE_PIN, OUTPUT);
+    pinMode(GREEN_PIN, OUTPUT);
 
     // set the pinmode for the contact switches
-    pinMode(CONTACT_A, INPUT);
-    pinMode(CONTACT_B, INPUT);
+    // pinMode(CONTACT_A, INPUT);
+    // pinMode(CONTACT_B, INPUT);
 
     // flash the LEDs and flaps to ensure they're all working
     for (uint8_t i = 0; i < FLIGHT_NUMBER + 1; i++) // twice if second flight
     {
-        digitalWrite(INDICATOR_PIN, HIGH);
-        digitalWrite(ERROR_PIN, HIGH);
+        digitalWrite(RED_PIN, HIGH);
+        digitalWrite(BLUE_PIN, HIGH);
+        digitalWrite(GREEN_PIN, HIGH);
         flaps.deploy();
         delay(1000);
-        digitalWrite(INDICATOR_PIN, LOW);
-        digitalWrite(ERROR_PIN, LOW);
+        digitalWrite(RED_PIN, LOW);
+        digitalWrite(BLUE_PIN, LOW);
+        digitalWrite(GREEN_PIN, LOW);
         flaps.retract();
-        delay(600);
-        flaps.kill();
+        delay(1200);
     }
 
-    attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
-    attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
+    // attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
+    // attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
 
     // initialize the LSM303, the BMP085, and the SD card
     if(!lsm.begin()) fatal_error(1);
@@ -117,17 +121,28 @@ void setup()
     sensorData.print("Resting acceleration: ");
     sensorData.println(REST_ACCEL);
     sensorData.println("time,raw alt,k alt,raw accel,k accel,vel,s1,s2");
+
+    // flash again to indicate setup finished
+    digitalWrite(BLUE_PIN, HIGH);
+    flaps.deploy();
+    delay(1000);
+    digitalWrite(BLUE_PIN, LOW);
+    flaps.retract();
+    delay(600);
+    flaps.kill();
+
     BEGIN_TIME = millis();
     delay(NOMINAL_DT * 1000);
 }
 
 void loop()
 {
+    bool FLAP_STATE = false;
     static double alt_prev;
     double current_time, dt, raw_altitude, altitude, raw_accel, accel;
     update_time(&current_time, &dt);
     raw_altitude = getAltitude(1) - LAUNCHPAD_ALT;
-    raw_accel = getAcceleration(1) - REST_ACCEL;
+    raw_accel = getAcceleration(1); // - REST_ACCEL;
 
     // filter wizardry to clean up alt and accel data
     filter.F[0][1] = dt * dt;
@@ -196,25 +211,28 @@ void loop()
         // if the predicted altitude is acceptable, engage the flaps
         if (apo_predict > TARGET_ALT && vel_next > vmin)
         {
-            if (FLIGHT_NUMBER) flaps.deploy();
-            minor_status = 1;
+            FLAP_STATE = true;
         }
         else // otherwise, retract the flaps
         {
-            if (FLIGHT_NUMBER) flaps.retract();
-            minor_status = 0;
+            FLAP_STATE = false;
         }
 
         static uint8_t low_accel_count;
         if (velocity < vmin)
         {
             low_accel_count++;
-            flaps.retract();
+            FLAP_STATE = false;
         }
+        minor_status = FLAP_STATE;
         else if (low_accel_count > 0) low_accel_count--;
         if (low_accel_count > ticksToAdvance) stage++;
     }
-    if (stage == POST_APOGEE)
+    if (FLAP_STATE && FLIGHT_NUMBER)
+    {
+        flaps.deploy();
+    }
+    else
     {
         flaps.retract();
     }
@@ -242,10 +260,10 @@ void loop()
     flush++;
     if (flush == 50)
     {
-        SET(PORTD, INDICATOR_PIN);
+        SET(PORTD, BLUE_PIN);
         sensorData.flush();
         flush = 0;
-        CLR(PORTD, INDICATOR_PIN);
+        CLR(PORTD, BLUE_PIN);
     }
 
     // wait for next tick if computations were fast enough
@@ -271,9 +289,9 @@ void fatal_error(uint8_t error)
     {
         for (uint8_t i = 0; i < error; i++)
         {
-            digitalWrite(ERROR_PIN, HIGH);
+            digitalWrite(RED_PIN, HIGH);
             delay(250);
-            digitalWrite(ERROR_PIN, LOW);
+            digitalWrite(RED_PIN, LOW);
             delay(250);
         }
         delay(500);
@@ -292,7 +310,7 @@ double getAcceleration(uint8_t measurements)
     for (uint8_t i = 0; i < measurements; i++)
     {
         lsm.getEvent(&event);
-        sum += event.acceleration.z;
+        sum += event.acceleration.x;
     }
     return sum/measurements;
 }
