@@ -33,7 +33,7 @@ uint8_t stage = ON_LAUNCHPAD;       // current state of the vehicle
 Adafruit_LSM303_Accel_Unified       lsm = Adafruit_LSM303_Accel_Unified(30301);
 Adafruit_BMP085_Unified             bmp = Adafruit_BMP085_Unified(10085);
 
-KalmanFilter filter(0,0.0001);
+KalmanFilter filter(0, 0.01);
 File sensorData;
 FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 50);
 
@@ -46,16 +46,10 @@ FlapInterface flaps(FLAP_POSITIVE, FLAP_NEGATIVE, 50);
 
 void setup()
 {
-    Serial.begin(9600);
-
     // set the pinmode for the diagnostic LEDs
     pinMode(RED_PIN, OUTPUT);
     pinMode(BLUE_PIN, OUTPUT);
     pinMode(GREEN_PIN, OUTPUT);
-
-    // set the pinmode for the contact switches
-    // pinMode(CONTACT_A, INPUT);
-    // pinMode(CONTACT_B, INPUT);
 
     // flash the LEDs and flaps to ensure they're all working
     for (uint8_t i = 0; i < FLIGHT_NUMBER + 1; i++) // twice if second flight
@@ -71,9 +65,6 @@ void setup()
         flaps.retract();
         delay(1200);
     }
-
-    // attachInterrupt(digitalPinToInterrupt(CONTACT_A), contactInterrupt, RISING);
-    // attachInterrupt(digitalPinToInterrupt(CONTACT_B), contactInterrupt, RISING);
 
     // initialize the LSM303, the BMP085, and the SD card
     if(!lsm.begin()) fatal_error(1);
@@ -103,16 +94,17 @@ void setup()
     filter.F[0][0] = 1;
     filter.F[1][1] = 1;
     // sensor covariance matrix, R
-    filter.R[0][0] = 0.08;
+    filter.R[0][0] = 0.02;
     filter.R[1][1] = 0.001;
     // state matrix, X
-    filter.X[0][0] = 0;
-    filter.X[1][0] = 0;
+    filter.X[0][0] = 0; // altitude
+    filter.X[1][0] = 0; // acceleration
     // uncertainty matrix, P
-    filter.P[0][0] = 100;
-    filter.P[1][1] = 100;
+    filter.P[0][0] = 10;
+    filter.P[1][1] = 10;
 
     sensorData.println(filename);
+    sensorData.println("WATCH OUT FOR THOSE WRIST ROCKETS");
     sensorData.println("Notes:");
     sensorData.print("Nominal dt: ");
     sensorData.println(NOMINAL_DT);
@@ -128,7 +120,7 @@ void setup()
     delay(1000);
     digitalWrite(BLUE_PIN, LOW);
     flaps.retract();
-    delay(600);
+    delay(2000);
     flaps.kill();
 
     BEGIN_TIME = millis();
@@ -145,7 +137,7 @@ void loop()
     raw_accel = getAcceleration(1); // - REST_ACCEL;
 
     // filter wizardry to clean up alt and accel data
-    filter.F[0][1] = dt * dt;
+    filter.F[0][1] = dt * dt; // relation between acceleration and altitude
     float Z[MEAS] = {raw_altitude, raw_accel};
     float* X = filter.step((float*) Z);
     altitude = X[0];
@@ -156,13 +148,13 @@ void loop()
     uint8_t major_status = 100;
     uint8_t minor_status = 0;
     // stage-specific progression logic
-    const uint8_t ticksToAdvance = 0.25/NOMINAL_DT;
+    const uint8_t ticksToAdvance = 6;
     if (stage == ON_LAUNCHPAD)
     {
         static uint8_t high_vel_count;
         if (velocity > 3) high_vel_count++;
         else if (high_vel_count > 0) high_vel_count--;
-        if (high_vel_count > ticksToAdvance) stage++;
+        if (high_vel_count > 2 * ticksToAdvance) stage++;
 
         major_status = ON_LAUNCHPAD;
         minor_status = high_vel_count;
@@ -196,7 +188,7 @@ void loop()
          * vehicle to brake too hard, so the flaps are closed.
          */
 
-        const uint8_t vmin = 8; // minimum velocity for flap control
+        const uint8_t vmin = 15; // minimum velocity for flap control
 
         major_status = APOGEE_COAST;
 
@@ -218,14 +210,14 @@ void loop()
             FLAP_STATE = false;
         }
 
-        static uint8_t low_accel_count;
+        static uint8_t low_vel_count;
         if (velocity < vmin)
         {
-            low_accel_count++;
+            low_vel_count++;
             FLAP_STATE = false;
         }
-        else if (low_accel_count > 0) low_accel_count--;
-        if (low_accel_count > ticksToAdvance) stage++;
+        else if (low_vel_count > 0) low_vel_count--;
+        if (low_vel_count > ticksToAdvance) stage++;
         minor_status = FLAP_STATE;
     }
     if (FLAP_STATE && FLIGHT_NUMBER)
@@ -296,11 +288,6 @@ void fatal_error(uint8_t error)
         }
         delay(500);
     }
-}
-
-void contactInterrupt()
-{
-    Serial.println("CONTACT SWITCH TRIGGERED");
 }
 
 double getAcceleration(uint8_t measurements)

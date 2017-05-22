@@ -1,8 +1,6 @@
 #define FLIGHT_NUMBER   0       // either 0 or 1
 
-#define WET_MASS        5.0     // kilograms
-
-#define DRY_MASS        3.75    // kilograms
+#define DRY_MASS        6.160   // kilograms
 
 #define ATM_DENSITY     1.225   // kg/m^3
 
@@ -14,7 +12,7 @@
 
 #define CD_ACTIVE       0.6     // unitless
 
-#define TARGET_ALT      3500    // meters
+#define TARGET_ALT      1050    // meters (3000 feet = 914 meters)
 
 #define K_PASSIVE       (0.5 * ATM_DENSITY * CD_PASSIVE * REF_AREA_BODY)
 
